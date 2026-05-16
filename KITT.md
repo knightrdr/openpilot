@@ -7,7 +7,7 @@ KITT is a private feature fork of comma.ai openpilot for a comma 3X installed in
 - Upstream: `https://github.com/commaai/openpilot.git`
 - Starting tag: `v0.11.0`
 - Development branch: `kitt/c3x-main`
-- Public install branch: `kitt/install-public`
+- Public install branch: `kitt-install`
 
 ## Install Strategy
 
@@ -15,10 +15,16 @@ KITT uses a private-development/public-install workflow:
 
 1. Build and test custom features on `kitt/c3x-main`.
 2. Keep private or experimental work off the install branch.
-3. Merge only install-ready commits into `kitt/install-public`.
-4. Push `kitt/install-public` to a public GitHub fork or public mirror for comma 3X installation.
+3. Merge only install-ready commits into `kitt-install`.
+4. Push `kitt-install` to a public GitHub fork or public mirror for comma 3X installation.
 
 This keeps daily development private while preserving a simple install path for the device.
+
+Expected comma 3X custom software URL:
+
+```text
+https://installer.comma.ai/knightrdr/kitt-install
+```
 
 ## Safety Rules
 
