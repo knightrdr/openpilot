@@ -32,7 +32,7 @@ Treat changes to steering, braking, acceleration, CAN messages, safety hooks, an
 
 ## First Customization Targets
 
-- KITT branding and UI text.
+- KITT branding and UI text. The Software settings page identifies the fork as `KITT openpilot` and shows the comma 3X / Kia Stinger profile.
 - A feature flag namespace for future KITT options.
 - Vehicle-specific configuration for the Kia Stinger.
 - Custom alerts and sounds.

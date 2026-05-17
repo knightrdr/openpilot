@@ -2,6 +2,7 @@ import os
 import time
 import datetime
 from openpilot.common.time_helpers import system_time_valid
+from openpilot.selfdrive.ui.kitt_branding import KITT_BRAND_NAME, kitt_profile_description
 from openpilot.selfdrive.ui.ui_state import ui_state
 from openpilot.system.ui.lib.application import gui_app
 from openpilot.system.ui.lib.multilang import tr, trn
@@ -72,6 +73,7 @@ class SoftwareLayout(Widget):
 
     self._scroller = Scroller([
       self._onroad_label,
+      text_item(lambda: "Fork", KITT_BRAND_NAME, kitt_profile_description),
       self._version_item,
       self._download_btn,
       self._install_btn,
