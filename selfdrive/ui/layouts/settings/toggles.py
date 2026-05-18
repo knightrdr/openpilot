@@ -31,6 +31,9 @@ DESCRIPTIONS = {
   'RecordFront': tr_noop("Upload data from the driver facing camera and help improve the driver monitoring algorithm."),
   "IsMetric": tr_noop("Display speed in km/h instead of mph."),
   "RecordAudio": tr_noop("Record and store microphone audio while driving. The audio will be included in the dashcam video in comma connect."),
+  "KittVoiceControl": tr_noop(
+    "Listen for limited KITT voice commands while driving. This proof of concept only enables safe UI commands."
+  ),
 }
 
 
@@ -81,6 +84,12 @@ class TogglesLayout(Widget):
       "RecordAudio": (
         lambda: tr("Record and Upload Microphone Audio"),
         DESCRIPTIONS["RecordAudio"],
+        "microphone.png",
+        True,
+      ),
+      "KittVoiceControl": (
+        lambda: tr("KITT Voice Commands"),
+        DESCRIPTIONS["KittVoiceControl"],
         "microphone.png",
         True,
       ),

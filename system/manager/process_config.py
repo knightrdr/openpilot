@@ -34,6 +34,9 @@ def ublox(started: bool, params: Params, CP: car.CarParams) -> bool:
 def joystick(started: bool, params: Params, CP: car.CarParams) -> bool:
   return started and params.get_bool("JoystickDebugMode")
 
+def kitt_voice(started: bool, params: Params, CP: car.CarParams) -> bool:
+  return started and not CP.notCar and params.get_bool("KittVoiceControl")
+
 def not_joystick(started: bool, params: Params, CP: car.CarParams) -> bool:
   return started and not params.get_bool("JoystickDebugMode")
 
@@ -74,6 +77,7 @@ procs = [
   PythonProcess("proclogd", "system.proclogd", only_onroad, enabled=platform.system() != "Darwin"),
   PythonProcess("journald", "system.journald", only_onroad, platform.system() != "Darwin"),
   PythonProcess("micd", "system.micd", iscar),
+  PythonProcess("kittvoiced", "selfdrive.kitt.voiced", kitt_voice),
   PythonProcess("timed", "system.timed", always_run, enabled=not PC),
 
   PythonProcess("modeld", "selfdrive.modeld.modeld", only_onroad),
