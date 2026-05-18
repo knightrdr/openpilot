@@ -3,8 +3,10 @@ import json
 import os
 import re
 import time
+import wave
 from dataclasses import dataclass
 from importlib.util import find_spec
+from pathlib import Path
 
 import numpy as np
 
@@ -17,6 +19,8 @@ from openpilot.common.swaglog import cloudlog
 COMMAND_PREFIXES = ("kitt", "kit", "kid")
 COMMAND_COOLDOWN = 2.0
 VOSK_MODEL_PATH = "/data/openpilot/kitt/vosk-model"
+PIPER_MODEL_PATH = "/data/openpilot/kitt/piper-voice/en_US-lessac-medium.onnx"
+PIPER_SPEECH_DIR = "/tmp"
 RECOGNIZER_GRAMMAR = json.dumps([
   "kitt show settings",
   "kitt what is my current speed",
@@ -97,22 +101,64 @@ class OptionalVoskRecognizer:
     return text if text else None
 
 
+class OptionalPiperSpeaker:
+  def __init__(self):
+    self._voice = None
+    self.available = False
+    self.reason = "piper Python package is not installed"
+
+    if find_spec("piper") is None:
+      return
+
+    if not os.path.isfile(PIPER_MODEL_PATH):
+      self.reason = f"piper voice model not found at {PIPER_MODEL_PATH}"
+      return
+
+    try:
+      from piper.voice import PiperVoice
+      self._voice = PiperVoice.load(PIPER_MODEL_PATH)
+      self.available = True
+      self.reason = "ready"
+    except Exception as e:
+      self.reason = str(e)
+      cloudlog.exception("kittvoiced failed to initialize piper")
+
+  def speak(self, text: str) -> str | None:
+    if not self.available or self._voice is None:
+      return None
+
+    speech_path = Path(PIPER_SPEECH_DIR) / f"kitt_speech_{int(time.monotonic() * 1000)}.wav"
+    try:
+      with wave.open(str(speech_path), "wb") as wav_file:
+        self._voice.synthesize_wav(text, wav_file)
+      return str(speech_path)
+    except Exception:
+      cloudlog.exception("kittvoiced failed to synthesize speech")
+      return None
+
+
 class KittVoice:
   def __init__(self):
     self.params = Params()
     self.sm = messaging.SubMaster(["rawAudioData", "carState"])
     self.rk = Ratekeeper(20)
     self.recognizer = OptionalVoskRecognizer()
+    self.speaker = OptionalPiperSpeaker()
     self.last_command_time = 0.0
     self.noise_floor = 0.0
 
-    self._set_result(f"voice daemon started; recognizer={self.recognizer.reason}")
+    self._set_result(f"voice daemon started; recognizer={self.recognizer.reason}; speaker={self.speaker.reason}")
 
   def _set_result(self, result: str) -> None:
     self.params.put("KittVoiceLastResult", result)
 
   def _set_command(self, command: VoiceCommand) -> None:
     self.params.put("KittVoiceLastCommand", command.phrase)
+
+  def _speak(self, text: str) -> None:
+    speech_file = self.speaker.speak(text)
+    if speech_file is not None:
+      self.params.put("KittSpeechFile", speech_file)
 
   def _execute(self, command: VoiceCommand) -> None:
     now = time.monotonic()
@@ -124,13 +170,16 @@ class KittVoice:
     if command.action == "show_settings":
       self.params.put("KittUiCommand", "show_settings")
       self._set_result("showing settings")
+      self._speak("Showing settings.")
       cloudlog.info(f"kittvoiced command: {command.phrase} -> show settings")
     elif command.action == "current_speed":
       speed_ms = self.sm["carState"].vEgoCluster if self.sm.valid["carState"] else 0.0
       is_metric = self.params.get_bool("IsMetric")
       speed = speed_ms * 3.6 if is_metric else speed_ms * 2.236936
       unit = "km/h" if is_metric else "mph"
-      self._set_result(f"current speed is {round(speed)} {unit}")
+      speed_text = f"Current speed is {round(speed)} {unit}."
+      self._set_result(speed_text.lower())
+      self._speak(speed_text)
       cloudlog.info(f"kittvoiced command: {command.phrase} -> current speed")
 
   def _handle_test_command(self) -> None:

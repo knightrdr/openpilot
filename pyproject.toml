@@ -11,6 +11,7 @@ authors = [
 dependencies = [
   # multiple users
   "sounddevice",  # micd + soundd
+  "piper-tts >=1.4.2",  # KITT offline voice replies
   "vosk >=0.3.45",  # KITT offline voice recognition
   "pyserial",     # pigeond + qcomgpsd
   "requests",     # many one-off uses

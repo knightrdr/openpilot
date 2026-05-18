@@ -1,5 +1,6 @@
 import math
 import numpy as np
+import os
 import time
 import wave
 
@@ -7,6 +8,7 @@ import wave
 from cereal import car, messaging
 from openpilot.common.basedir import BASEDIR
 from openpilot.common.filter_simple import FirstOrderFilter
+from openpilot.common.params import Params
 from openpilot.common.realtime import Ratekeeper
 from openpilot.common.utils import retry
 from openpilot.common.swaglog import cloudlog
@@ -18,6 +20,9 @@ SAMPLE_RATE = 48000
 SAMPLE_BUFFER = 4096 # (approx 100ms)
 MAX_VOLUME = 1.0
 MIN_VOLUME = 0.1
+KITT_SPEECH_VOLUME = 0.75
+KITT_MAX_SPEECH_SECONDS = 8
+KITT_SPEECH_PREFIX = "/tmp/kitt_speech_"
 SELFDRIVE_STATE_TIMEOUT = 5 # 5 seconds
 FILTER_DT = 1. / (micd.SAMPLE_RATE / micd.FFT_SAMPLES)
 
@@ -63,11 +68,14 @@ def check_selfdrive_timeout_alert(sm):
 
 class Soundd:
   def __init__(self):
+    self.params = Params()
     self.load_sounds()
 
     self.current_alert = AudibleAlert.none
     self.current_volume = MIN_VOLUME
     self.current_sound_frame = 0
+    self.kitt_speech_data: np.ndarray | None = None
+    self.kitt_speech_frame = 0
 
     self.selfdrive_timeout_alert = False
 
@@ -91,6 +99,7 @@ class Soundd:
   def get_sound_data(self, frames): # get "frames" worth of data from the current alert sound, looping when required
 
     ret = np.zeros(frames, dtype=np.float32)
+    volume = self.current_volume
 
     if self.current_alert != AudibleAlert.none:
       num_loops = sound_list[self.current_alert][1]
@@ -107,7 +116,19 @@ class Soundd:
         written_frames += frames_to_write
         self.current_sound_frame += frames_to_write
 
-    return ret * self.current_volume
+    elif self.kitt_speech_data is not None:
+      volume = 1.0
+      available_frames = self.kitt_speech_data.shape[0] - self.kitt_speech_frame
+      frames_to_write = min(available_frames, frames)
+      if frames_to_write > 0:
+        ret[:frames_to_write] = self.kitt_speech_data[self.kitt_speech_frame:self.kitt_speech_frame + frames_to_write]
+        self.kitt_speech_frame += frames_to_write
+
+      if self.kitt_speech_frame >= self.kitt_speech_data.shape[0]:
+        self.kitt_speech_data = None
+        self.kitt_speech_frame = 0
+
+    return ret * volume
 
   def callback(self, data_out: np.ndarray, frames: int, time, status) -> None:
     if status:
@@ -135,6 +156,46 @@ class Soundd:
     volume = ((weighted_db - AMBIENT_DB) / DB_SCALE) * (MAX_VOLUME - MIN_VOLUME) + MIN_VOLUME
     return math.pow(VOLUME_BASE, (np.clip(volume, MIN_VOLUME, MAX_VOLUME) - 1))
 
+  def maybe_load_kitt_speech(self):
+    if self.kitt_speech_data is not None or self.current_alert != AudibleAlert.none:
+      return
+
+    path = self.params.get("KittSpeechFile")
+    if not path:
+      return
+
+    self.params.remove("KittSpeechFile")
+    speech_path = path.decode("utf-8", "replace")
+    if not speech_path.startswith(KITT_SPEECH_PREFIX):
+      cloudlog.warning(f"ignoring invalid KITT speech path: {speech_path}")
+      return
+
+    try:
+      with wave.open(speech_path, "r") as wavefile:
+        if wavefile.getnchannels() != 1 or wavefile.getsampwidth() != 2:
+          cloudlog.warning(f"ignoring unsupported KITT speech wav: {speech_path}")
+          return
+
+        source_rate = wavefile.getframerate()
+        max_frames = min(wavefile.getnframes(), int(source_rate * KITT_MAX_SPEECH_SECONDS))
+        samples = np.frombuffer(wavefile.readframes(max_frames), dtype=np.int16).astype(np.float32) / (2**16 / 2)
+
+      if source_rate != SAMPLE_RATE and samples.size > 0:
+        source_x = np.arange(samples.size)
+        target_size = int(samples.size * SAMPLE_RATE / source_rate)
+        target_x = np.linspace(0, samples.size - 1, target_size)
+        samples = np.interp(target_x, source_x, samples).astype(np.float32)
+
+      self.kitt_speech_data = samples * KITT_SPEECH_VOLUME
+      self.kitt_speech_frame = 0
+    except Exception:
+      cloudlog.exception(f"failed to load KITT speech wav: {speech_path}")
+    finally:
+      try:
+        os.remove(speech_path)
+      except OSError:
+        pass
+
   @retry(attempts=10, delay=3)
   def get_stream(self, sd):
     # reload sounddevice to reinitialize portaudio
@@ -160,6 +221,7 @@ class Soundd:
           self.current_volume = self.calculate_volume(float(self.spl_filter_weighted.x))
 
         self.get_audible_alert(sm)
+        self.maybe_load_kitt_speech()
 
         rk.keep_time()
 

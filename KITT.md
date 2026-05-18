@@ -28,13 +28,14 @@ https://installer.comma.ai/knightrdr/kitt-install
 
 ## Voice Control
 
-KITT voice control uses the comma 3X microphone, openpilot's `rawAudioData` stream, and offline Vosk speech recognition.
+KITT voice control uses the comma 3X microphone, openpilot's `rawAudioData` stream, offline Vosk speech recognition, and offline Piper text-to-speech.
 
-The voice process is disabled by default. Enable `KITT Voice Commands` in settings, then install the small English Vosk model on the device:
+The voice process is disabled by default. Enable `KITT Voice Commands` in settings, then install the small English Vosk model and Piper voice model on the device:
 
 ```bash
 cd /data/openpilot
 ./tools/kitt/install_vosk_model.sh
+./tools/kitt/install_piper_voice.sh
 ```
 
 Initial supported phrases:
@@ -42,7 +43,7 @@ Initial supported phrases:
 - `KITT, show settings`
 - `KITT, what's my current speed?`
 
-The current speed response is written to `KittVoiceLastResult`. Spoken replies are not implemented yet.
+Spoken replies are routed through `soundd`, so normal openpilot alert sounds keep priority.
 
 ## Safety Rules
 
