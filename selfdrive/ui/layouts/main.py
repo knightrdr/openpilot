@@ -7,6 +7,7 @@ from openpilot.selfdrive.ui.layouts.home import HomeLayout
 from openpilot.selfdrive.ui.layouts.settings.settings import SettingsLayout, PanelType
 from openpilot.selfdrive.ui.onroad.augmented_road_view import AugmentedRoadView
 from openpilot.selfdrive.ui.ui_state import device, ui_state
+from openpilot.selfdrive.ui.widgets.kitt_startup import KittStartupOverlay
 from openpilot.system.ui.widgets import Widget
 from openpilot.selfdrive.ui.layouts.onboarding import OnboardingWindow
 
@@ -42,6 +43,13 @@ class MainLayout(Widget):
     self._onboarding_window = OnboardingWindow()
     if not self._onboarding_window.completed:
       gui_app.push_widget(self._onboarding_window)
+    else:
+      self._startup_overlay = KittStartupOverlay(on_complete=self._dismiss_startup_overlay)
+      gui_app.push_widget(self._startup_overlay)
+
+  def _dismiss_startup_overlay(self):
+    if gui_app.get_active_widget() == self._startup_overlay:
+      gui_app.pop_widget()
 
   def _render(self, _):
     self._handle_onroad_transition()
