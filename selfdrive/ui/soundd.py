@@ -23,6 +23,8 @@ MIN_VOLUME = 0.1
 KITT_SPEECH_VOLUME = 0.75
 KITT_MAX_SPEECH_SECONDS = 8
 KITT_SPEECH_PREFIX = "/tmp/kitt_speech_"
+KITT_VOICE_DELAY_SECONDS = 0.018
+KITT_VOICE_PITCH_RATIO = 0.92
 SELFDRIVE_STATE_TIMEOUT = 5 # 5 seconds
 FILTER_DT = 1. / (micd.SAMPLE_RATE / micd.FFT_SAMPLES)
 
@@ -64,6 +66,46 @@ def check_selfdrive_timeout_alert(sm):
       return True
 
   return False
+
+
+def apply_kitt_voice_style(samples: np.ndarray, sample_rate: int = SAMPLE_RATE) -> np.ndarray:
+  if samples.size == 0:
+    return samples
+
+  styled = samples.astype(np.float32)
+  original_size = styled.size
+
+  # Slight synthetic pitch drop without changing the final buffer length.
+  source_x = np.arange(styled.size)
+  pitched_x = np.minimum(np.arange(styled.size) * KITT_VOICE_PITCH_RATIO, styled.size - 1)
+  styled = np.interp(pitched_x, source_x, styled).astype(np.float32)
+
+  # Radio/computer presence shaping: reduce low rumble and emphasize consonants.
+  high_pass = np.empty_like(styled)
+  high_pass[0] = styled[0]
+  high_pass[1:] = styled[1:] - 0.88 * styled[:-1]
+  styled = 0.62 * styled + 0.38 * high_pass
+
+  # Mild machine modulation and short reflection for a dashboard-computer tone.
+  t = np.arange(styled.size, dtype=np.float32) / sample_rate
+  styled *= 0.92 + 0.08 * np.sin(2 * math.pi * 7.0 * t)
+  styled += 0.045 * np.sin(2 * math.pi * 38.0 * t) * np.abs(styled)
+
+  delay = int(sample_rate * KITT_VOICE_DELAY_SECONDS)
+  if delay > 0 and styled.size > delay:
+    styled[delay:] += 0.18 * styled[:-delay]
+
+  # Controlled saturation keeps it assertive without clipping.
+  styled = np.tanh(styled * 1.25).astype(np.float32)
+  peak = float(np.max(np.abs(styled)))
+  if peak > 0:
+    styled = styled / max(peak, 1.0)
+
+  if styled.size != original_size:
+    target_x = np.linspace(0, styled.size - 1, original_size)
+    styled = np.interp(target_x, np.arange(styled.size), styled).astype(np.float32)
+
+  return np.clip(styled, -1.0, 1.0)
 
 
 class Soundd:
@@ -186,7 +228,7 @@ class Soundd:
         target_x = np.linspace(0, samples.size - 1, target_size)
         samples = np.interp(target_x, source_x, samples).astype(np.float32)
 
-      self.kitt_speech_data = samples * KITT_SPEECH_VOLUME
+      self.kitt_speech_data = apply_kitt_voice_style(samples) * KITT_SPEECH_VOLUME
       self.kitt_speech_frame = 0
     except Exception:
       cloudlog.exception(f"failed to load KITT speech wav: {speech_path}")

@@ -43,7 +43,7 @@ Initial supported phrases:
 - `KITT, show settings`
 - `KITT, what's my current speed?`
 
-Spoken replies are routed through `soundd`, so normal openpilot alert sounds keep priority.
+Spoken replies are routed through `soundd`, so normal openpilot alert sounds keep priority. KITT applies an original voice-style effect to Piper output for a deeper, more synthetic dashboard-computer tone without cloning any actor's voice.
 
 ## Safety Rules
 

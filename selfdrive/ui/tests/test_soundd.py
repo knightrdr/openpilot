@@ -1,8 +1,9 @@
 from cereal import car
 from cereal import messaging
 from cereal.messaging import SubMaster, PubMaster
-from openpilot.selfdrive.ui.soundd import SELFDRIVE_STATE_TIMEOUT, check_selfdrive_timeout_alert
+from openpilot.selfdrive.ui.soundd import SAMPLE_RATE, SELFDRIVE_STATE_TIMEOUT, apply_kitt_voice_style, check_selfdrive_timeout_alert
 
+import numpy as np
 import time
 
 AudibleAlert = car.CarControl.HUDControl.AudibleAlert
@@ -32,4 +33,15 @@ class TestSoundd:
     assert check_selfdrive_timeout_alert(sm)
 
   # TODO: add test with micd for checking that soundd actually outputs sounds
+
+  def test_kitt_voice_style(self):
+    t = np.arange(SAMPLE_RATE // 4, dtype=np.float32) / SAMPLE_RATE
+    samples = 0.4 * np.sin(2 * np.pi * 220 * t)
+
+    styled = apply_kitt_voice_style(samples)
+
+    assert styled.shape == samples.shape
+    assert np.all(np.isfinite(styled))
+    assert np.max(np.abs(styled)) <= 1.0
+    assert not np.allclose(styled, samples)
 
