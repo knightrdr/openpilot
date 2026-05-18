@@ -26,6 +26,24 @@ Expected comma 3X custom software URL:
 https://installer.comma.ai/knightrdr/kitt-install
 ```
 
+## Voice Control
+
+KITT voice control uses the comma 3X microphone, openpilot's `rawAudioData` stream, and offline Vosk speech recognition.
+
+The voice process is disabled by default. Enable `KITT Voice Commands` in settings, then install the small English Vosk model on the device:
+
+```bash
+cd /data/openpilot
+./tools/kitt/install_vosk_model.sh
+```
+
+Initial supported phrases:
+
+- `KITT, show settings`
+- `KITT, what's my current speed?`
+
+The current speed response is written to `KittVoiceLastResult`. Spoken replies are not implemented yet.
+
 ## Safety Rules
 
 Treat changes to steering, braking, acceleration, CAN messages, safety hooks, and driver monitoring as safety-critical. Keep those changes isolated in focused commits and test them before road use.

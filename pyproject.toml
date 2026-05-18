@@ -11,6 +11,7 @@ authors = [
 dependencies = [
   # multiple users
   "sounddevice",  # micd + soundd
+  "vosk >=0.3.45",  # KITT offline voice recognition
   "pyserial",     # pigeond + qcomgpsd
   "requests",     # many one-off uses
   "sympy",        # rednose + friends

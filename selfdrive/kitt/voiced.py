@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import json
 import os
+import re
 import time
 from dataclasses import dataclass
 from importlib.util import find_spec
@@ -16,6 +17,15 @@ from openpilot.common.swaglog import cloudlog
 COMMAND_PREFIXES = ("kitt", "kit", "kid")
 COMMAND_COOLDOWN = 2.0
 VOSK_MODEL_PATH = "/data/openpilot/kitt/vosk-model"
+RECOGNIZER_GRAMMAR = json.dumps([
+  "kitt show settings",
+  "kitt what is my current speed",
+  "kitt whats my current speed",
+  "show settings",
+  "what is my current speed",
+  "whats my current speed",
+  "[unk]",
+])
 
 
 @dataclass(frozen=True)
@@ -25,7 +35,8 @@ class VoiceCommand:
 
 
 def normalize_phrase(phrase: str) -> str:
-  normalized = " ".join(phrase.lower().replace(".", " ").replace(",", " ").split())
+  normalized = re.sub(r"[^a-z0-9 ]+", " ", phrase.lower())
+  normalized = " ".join(normalized.split())
   return normalized.replace("k i t t", "kitt")
 
 
@@ -39,11 +50,11 @@ def command_from_phrase(phrase: str) -> VoiceCommand | None:
     words = words[1:]
   command = " ".join(words)
 
-  if command in ("bookmark", "bookmark this", "mark this", "save this"):
-    return VoiceCommand("bookmark", phrase)
+  if command in ("show settings", "open settings", "settings"):
+    return VoiceCommand("show_settings", phrase)
 
-  if command in ("status", "system status", "what is your status"):
-    return VoiceCommand("status", phrase)
+  if command in ("what is my current speed", "what s my current speed", "whats my current speed", "current speed", "my current speed"):
+    return VoiceCommand("current_speed", phrase)
 
   return None
 
@@ -63,7 +74,7 @@ class OptionalVoskRecognizer:
 
     try:
       from vosk import KaldiRecognizer, Model
-      self._recognizer = KaldiRecognizer(Model(VOSK_MODEL_PATH), 16000)
+      self._recognizer = KaldiRecognizer(Model(VOSK_MODEL_PATH), 16000, RECOGNIZER_GRAMMAR)
       self.available = True
       self.reason = "ready"
     except Exception as e:
@@ -90,7 +101,6 @@ class KittVoice:
   def __init__(self):
     self.params = Params()
     self.sm = messaging.SubMaster(["rawAudioData", "carState"])
-    self.pm = messaging.PubMaster(["bookmarkButton"])
     self.rk = Ratekeeper(20)
     self.recognizer = OptionalVoskRecognizer()
     self.last_command_time = 0.0
@@ -111,16 +121,17 @@ class KittVoice:
     self.last_command_time = now
     self._set_command(command)
 
-    if command.action == "bookmark":
-      msg = messaging.new_message("bookmarkButton")
-      msg.valid = True
-      self.pm.send("bookmarkButton", msg)
-      self._set_result("bookmark sent")
-      cloudlog.info(f"kittvoiced command: {command.phrase} -> bookmark")
-    elif command.action == "status":
-      speed_ms = self.sm["carState"].vEgo if self.sm.valid["carState"] else 0.0
-      self._set_result(f"system online; speed={speed_ms:.1f} m/s")
-      cloudlog.info(f"kittvoiced command: {command.phrase} -> status")
+    if command.action == "show_settings":
+      self.params.put("KittUiCommand", "show_settings")
+      self._set_result("showing settings")
+      cloudlog.info(f"kittvoiced command: {command.phrase} -> show settings")
+    elif command.action == "current_speed":
+      speed_ms = self.sm["carState"].vEgoCluster if self.sm.valid["carState"] else 0.0
+      is_metric = self.params.get_bool("IsMetric")
+      speed = speed_ms * 3.6 if is_metric else speed_ms * 2.236936
+      unit = "km/h" if is_metric else "mph"
+      self._set_result(f"current speed is {round(speed)} {unit}")
+      cloudlog.info(f"kittvoiced command: {command.phrase} -> current speed")
 
   def _handle_test_command(self) -> None:
     phrase_bytes = self.params.get("KittVoiceCommandInput")

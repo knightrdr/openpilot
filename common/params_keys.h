@@ -70,6 +70,7 @@ inline static std::unordered_map<std::string, ParamKeyAttributes> keys = {
     {"KittVoiceControl", {PERSISTENT, BOOL, "0"}},
     {"KittVoiceLastCommand", {CLEAR_ON_MANAGER_START | DONT_LOG, STRING}},
     {"KittVoiceLastResult", {CLEAR_ON_MANAGER_START | DONT_LOG, STRING}},
+    {"KittUiCommand", {CLEAR_ON_MANAGER_START | DONT_LOG, STRING}},
     {"LanguageSetting", {PERSISTENT, STRING, "en"}},
     {"LastAthenaPingTime", {CLEAR_ON_MANAGER_START, INT}},
     {"LastGPSPosition", {PERSISTENT, STRING}},

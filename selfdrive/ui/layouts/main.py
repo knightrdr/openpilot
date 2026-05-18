@@ -1,6 +1,7 @@
 import pyray as rl
 from enum import IntEnum
 import cereal.messaging as messaging
+from openpilot.common.params import Params
 from openpilot.system.ui.lib.application import gui_app
 from openpilot.selfdrive.ui.layouts.sidebar import Sidebar, SIDEBAR_WIDTH
 from openpilot.selfdrive.ui.layouts.home import HomeLayout
@@ -23,6 +24,7 @@ class MainLayout(Widget):
     super().__init__()
 
     self._pm = messaging.PubMaster(['bookmarkButton'])
+    self._params = Params()
 
     self._sidebar = Sidebar()
     self._current_mode = MainState.HOME
@@ -52,8 +54,18 @@ class MainLayout(Widget):
       gui_app.pop_widget()
 
   def _render(self, _):
+    self._handle_kitt_ui_command()
     self._handle_onroad_transition()
     self._render_main_content()
+
+  def _handle_kitt_ui_command(self):
+    command = self._params.get("KittUiCommand")
+    if not command:
+      return
+
+    self._params.remove("KittUiCommand")
+    if command == b"show_settings":
+      self.open_settings(PanelType.DEVICE)
 
   def _setup_callbacks(self):
     self._sidebar.set_callbacks(on_settings=self._on_settings_clicked,
