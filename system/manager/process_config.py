@@ -77,7 +77,7 @@ procs = [
   PythonProcess("proclogd", "system.proclogd", only_onroad, enabled=platform.system() != "Darwin"),
   PythonProcess("journald", "system.journald", only_onroad, platform.system() != "Darwin"),
   PythonProcess("micd", "system.micd", iscar),
-  PythonProcess("kittvoiced", "selfdrive.kitt.voiced", kitt_voice),
+  PythonProcess("kittvoiced", "selfdrive.kitt.voiced", kitt_voice, nice=10),
   PythonProcess("timed", "system.timed", always_run, enabled=not PC),
 
   PythonProcess("modeld", "selfdrive.modeld.modeld", only_onroad),
