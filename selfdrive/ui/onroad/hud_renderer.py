@@ -23,6 +23,8 @@ class UIConfig:
   set_speed_width_imperial: int = 172
   set_speed_height: int = 204
   wheel_icon_size: int = 144
+  brake_badge_width: int = 300
+  brake_badge_height: int = 64
 
 
 @dataclass(frozen=True)
@@ -31,6 +33,7 @@ class FontSizes:
   speed_unit: int = 66
   max_speed: int = 40
   set_speed: int = 90
+  brake_badge: int = 36
 
 
 @dataclass(frozen=True)
@@ -49,6 +52,8 @@ class Colors:
   BORDER_TRANSLUCENT = rl.Color(255, 255, 255, 75)
   HEADER_GRADIENT_START = rl.Color(0, 0, 0, 114)
   HEADER_GRADIENT_END = rl.BLANK
+  KITT_BRAKE_BG = rl.Color(225, 38, 38, 215)
+  KITT_OP_BRAKE_BG = rl.Color(240, 145, 35, 215)
 
 
 UI_CONFIG = UIConfig()
@@ -65,6 +70,8 @@ class HudRenderer(Widget):
     self.set_speed: float = SET_SPEED_NA
     self.speed: float = 0.0
     self.v_ego_cluster_seen: bool = False
+    self.driver_brake_active: bool = False
+    self.openpilot_brake_active: bool = False
 
     self._font_semi_bold: rl.Font = gui_app.font(FontWeight.SEMI_BOLD)
     self._font_bold: rl.Font = gui_app.font(FontWeight.BOLD)
@@ -83,6 +90,7 @@ class HudRenderer(Widget):
 
     controls_state = sm['controlsState']
     car_state = sm['carState']
+    car_control = sm['carControl']
 
     v_cruise_cluster = car_state.vCruiseCluster
     self.set_speed = (
@@ -100,6 +108,9 @@ class HudRenderer(Widget):
     speed_conversion = CV.MS_TO_KPH if ui_state.is_metric else CV.MS_TO_MPH
     self.speed = max(0.0, v_ego * speed_conversion)
 
+    self.driver_brake_active = car_state.brakePressed
+    self.openpilot_brake_active = car_control.longActive and car_control.actuators.accel < -0.05 and not self.driver_brake_active
+
   def _render(self, rect: rl.Rectangle) -> None:
     """Render HUD elements to the screen."""
     # Draw the header background
@@ -116,6 +127,7 @@ class HudRenderer(Widget):
       self._draw_set_speed(rect)
 
     self._draw_current_speed(rect)
+    self._draw_brake_status(rect)
 
     button_x = rect.x + rect.width - UI_CONFIG.border_size - UI_CONFIG.button_size
     button_y = rect.y + UI_CONFIG.border_size
@@ -178,3 +190,28 @@ class HudRenderer(Widget):
     unit_text_size = measure_text_cached(self._font_medium, unit_text, FONT_SIZES.speed_unit)
     unit_pos = rl.Vector2(rect.x + rect.width / 2 - unit_text_size.x / 2, 290 - unit_text_size.y / 2)
     rl.draw_text_ex(self._font_medium, unit_text, unit_pos, FONT_SIZES.speed_unit, 0, COLORS.WHITE_TRANSLUCENT)
+
+  def _draw_brake_status(self, rect: rl.Rectangle) -> None:
+    """Draw KITT brake/decel status when braking is active."""
+    if self.driver_brake_active:
+      text = tr("DRIVER BRAKE")
+      bg_color = COLORS.KITT_BRAKE_BG
+    elif self.openpilot_brake_active:
+      text = tr("OP BRAKE")
+      bg_color = COLORS.KITT_OP_BRAKE_BG
+    else:
+      return
+
+    badge_rect = rl.Rectangle(
+      rect.x + rect.width / 2 - UI_CONFIG.brake_badge_width / 2,
+      rect.y + 335,
+      UI_CONFIG.brake_badge_width,
+      UI_CONFIG.brake_badge_height,
+    )
+    rl.draw_rectangle_rounded(badge_rect, 0.35, 10, bg_color)
+    text_size = measure_text_cached(self._font_semi_bold, text, FONT_SIZES.brake_badge)
+    text_pos = rl.Vector2(
+      badge_rect.x + (badge_rect.width - text_size.x) / 2,
+      badge_rect.y + (badge_rect.height - text_size.y) / 2,
+    )
+    rl.draw_text_ex(self._font_semi_bold, text, text_pos, FONT_SIZES.brake_badge, 0, COLORS.WHITE)
