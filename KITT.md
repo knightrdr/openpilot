@@ -34,6 +34,7 @@ Treat changes to steering, braking, acceleration, CAN messages, safety hooks, an
 
 - KITT branding and UI text. The Software settings page identifies the fork as `KITT openpilot` and shows the comma 3X / Kia Stinger profile.
 - Onroad KITT brake status badge showing driver brake pedal activity and openpilot-requested braking/deceleration.
+- Monitor-only model stop/decel badge showing `modelV2.action.shouldStop` and negative model desired acceleration without changing control behavior.
 - A feature flag namespace for future KITT options.
 - Vehicle-specific configuration for the Kia Stinger.
 - Custom alerts and sounds.

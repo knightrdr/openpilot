@@ -25,6 +25,8 @@ class UIConfig:
   wheel_icon_size: int = 144
   brake_badge_width: int = 300
   brake_badge_height: int = 64
+  model_badge_width: int = 340
+  model_badge_height: int = 64
 
 
 @dataclass(frozen=True)
@@ -34,6 +36,7 @@ class FontSizes:
   max_speed: int = 40
   set_speed: int = 90
   brake_badge: int = 36
+  model_badge: int = 34
 
 
 @dataclass(frozen=True)
@@ -54,6 +57,8 @@ class Colors:
   HEADER_GRADIENT_END = rl.BLANK
   KITT_BRAKE_BG = rl.Color(225, 38, 38, 215)
   KITT_OP_BRAKE_BG = rl.Color(240, 145, 35, 215)
+  KITT_MODEL_STOP_BG = rl.Color(175, 40, 215, 215)
+  KITT_MODEL_DECEL_BG = rl.Color(64, 116, 220, 205)
 
 
 UI_CONFIG = UIConfig()
@@ -72,6 +77,8 @@ class HudRenderer(Widget):
     self.v_ego_cluster_seen: bool = False
     self.driver_brake_active: bool = False
     self.openpilot_brake_active: bool = False
+    self.model_stop_active: bool = False
+    self.model_decel_active: bool = False
 
     self._font_semi_bold: rl.Font = gui_app.font(FontWeight.SEMI_BOLD)
     self._font_bold: rl.Font = gui_app.font(FontWeight.BOLD)
@@ -91,6 +98,7 @@ class HudRenderer(Widget):
     controls_state = sm['controlsState']
     car_state = sm['carState']
     car_control = sm['carControl']
+    model_action = sm['modelV2'].action
 
     v_cruise_cluster = car_state.vCruiseCluster
     self.set_speed = (
@@ -110,6 +118,8 @@ class HudRenderer(Widget):
 
     self.driver_brake_active = car_state.brakePressed
     self.openpilot_brake_active = car_control.longActive and car_control.actuators.accel < -0.05 and not self.driver_brake_active
+    self.model_stop_active = model_action.shouldStop
+    self.model_decel_active = model_action.desiredAcceleration < -0.5 and not self.model_stop_active
 
   def _render(self, rect: rl.Rectangle) -> None:
     """Render HUD elements to the screen."""
@@ -128,6 +138,7 @@ class HudRenderer(Widget):
 
     self._draw_current_speed(rect)
     self._draw_brake_status(rect)
+    self._draw_model_stop_status(rect)
 
     button_x = rect.x + rect.width - UI_CONFIG.border_size - UI_CONFIG.button_size
     button_y = rect.y + UI_CONFIG.border_size
@@ -215,3 +226,28 @@ class HudRenderer(Widget):
       badge_rect.y + (badge_rect.height - text_size.y) / 2,
     )
     rl.draw_text_ex(self._font_semi_bold, text, text_pos, FONT_SIZES.brake_badge, 0, COLORS.WHITE)
+
+  def _draw_model_stop_status(self, rect: rl.Rectangle) -> None:
+    """Draw monitor-only model stop/decel intent."""
+    if self.model_stop_active:
+      text = tr("MODEL STOP")
+      bg_color = COLORS.KITT_MODEL_STOP_BG
+    elif self.model_decel_active:
+      text = tr("MODEL DECEL")
+      bg_color = COLORS.KITT_MODEL_DECEL_BG
+    else:
+      return
+
+    badge_rect = rl.Rectangle(
+      rect.x + rect.width / 2 - UI_CONFIG.model_badge_width / 2,
+      rect.y + 410,
+      UI_CONFIG.model_badge_width,
+      UI_CONFIG.model_badge_height,
+    )
+    rl.draw_rectangle_rounded(badge_rect, 0.35, 10, bg_color)
+    text_size = measure_text_cached(self._font_semi_bold, text, FONT_SIZES.model_badge)
+    text_pos = rl.Vector2(
+      badge_rect.x + (badge_rect.width - text_size.x) / 2,
+      badge_rect.y + (badge_rect.height - text_size.y) / 2,
+    )
+    rl.draw_text_ex(self._font_semi_bold, text, text_pos, FONT_SIZES.model_badge, 0, COLORS.WHITE)
