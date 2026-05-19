@@ -208,18 +208,19 @@ class TrafficMonitor:
 
     while True:
       streams = VisionIpcClient.available_streams("camerad", block=False)
-      if VisionStreamType.VISION_STREAM_ROAD in streams:
-        stream = VisionStreamType.VISION_STREAM_ROAD
-        break
       if VisionStreamType.VISION_STREAM_WIDE_ROAD in streams:
         stream = VisionStreamType.VISION_STREAM_WIDE_ROAD
+        break
+      if VisionStreamType.VISION_STREAM_ROAD in streams:
+        stream = VisionStreamType.VISION_STREAM_ROAD
         break
       time.sleep(0.2)
 
     client = VisionIpcClient("camerad", stream, True)
     while not client.connect(False):
       time.sleep(0.1)
-    cloudlog.info(f"kitttrafficd connected camera {client.width}x{client.height}")
+    self.params.put("KittTrafficCamera", str(stream))
+    cloudlog.info(f"kitttrafficd connected camera {stream=} {client.width}x{client.height}")
     return client
 
   def _frame_to_bgr(self, client, buf) -> np.ndarray:
