@@ -230,7 +230,12 @@ class HudRenderer(Widget):
       return
 
     try:
-      self.traffic_state = state if isinstance(state, dict) else json.loads(state.decode("utf-8", "replace"))
+      if isinstance(state, dict):
+        self.traffic_state = state
+      elif isinstance(state, bytes):
+        self.traffic_state = json.loads(state.decode("utf-8", "replace"))
+      else:
+        self.traffic_state = json.loads(str(state))
     except (AttributeError, json.JSONDecodeError):
       self.traffic_state = {}
 

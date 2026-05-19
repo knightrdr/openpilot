@@ -1,4 +1,4 @@
-from openpilot.selfdrive.kitt.voiced import command_from_phrase, normalize_phrase
+from openpilot.selfdrive.kitt.voiced import command_from_phrase, normalize_phrase, param_value_to_str
 
 
 def test_normalize_phrase():
@@ -21,3 +21,8 @@ def test_current_speed_commands():
 
 def test_unknown_command():
   assert command_from_phrase("KITT accelerate") is None
+
+
+def test_param_value_to_str():
+  assert param_value_to_str(b"KITT show settings") == "KITT show settings"
+  assert param_value_to_str("KITT show settings") == "KITT show settings"

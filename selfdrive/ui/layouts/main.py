@@ -64,7 +64,7 @@ class MainLayout(Widget):
       return
 
     self._params.remove("KittUiCommand")
-    if command == b"show_settings":
+    if command in (b"show_settings", "show_settings"):
       self.open_settings(PanelType.DEVICE)
 
   def _setup_callbacks(self):

@@ -68,6 +68,12 @@ def check_selfdrive_timeout_alert(sm):
   return False
 
 
+def param_value_to_str(value) -> str:
+  if isinstance(value, bytes):
+    return value.decode("utf-8", "replace")
+  return str(value)
+
+
 def apply_kitt_voice_style(samples: np.ndarray, sample_rate: int = SAMPLE_RATE) -> np.ndarray:
   if samples.size == 0:
     return samples
@@ -207,7 +213,7 @@ class Soundd:
       return
 
     self.params.remove("KittSpeechFile")
-    speech_path = path.decode("utf-8", "replace")
+    speech_path = param_value_to_str(path)
     if not speech_path.startswith(KITT_SPEECH_PREFIX):
       cloudlog.warning(f"ignoring invalid KITT speech path: {speech_path}")
       return

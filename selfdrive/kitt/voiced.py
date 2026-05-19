@@ -48,6 +48,12 @@ def normalize_phrase(phrase: str) -> str:
   return normalized.replace("k i t t", "kitt")
 
 
+def param_value_to_str(value) -> str:
+  if isinstance(value, bytes):
+    return value.decode("utf-8", "replace")
+  return str(value)
+
+
 def command_from_phrase(phrase: str) -> VoiceCommand | None:
   normalized = normalize_phrase(phrase)
   if not normalized:
@@ -191,7 +197,7 @@ class KittVoice:
     if not phrase_bytes:
       return
 
-    phrase = phrase_bytes.decode("utf-8", "replace")
+    phrase = param_value_to_str(phrase_bytes)
     self.params.remove("KittVoiceCommandInput")
     command = command_from_phrase(phrase)
     if command is None:

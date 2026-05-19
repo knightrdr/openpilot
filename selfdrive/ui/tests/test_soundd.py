@@ -1,7 +1,7 @@
 from cereal import car
 from cereal import messaging
 from cereal.messaging import SubMaster, PubMaster
-from openpilot.selfdrive.ui.soundd import SAMPLE_RATE, SELFDRIVE_STATE_TIMEOUT, apply_kitt_voice_style, check_selfdrive_timeout_alert
+from openpilot.selfdrive.ui.soundd import SAMPLE_RATE, SELFDRIVE_STATE_TIMEOUT, apply_kitt_voice_style, check_selfdrive_timeout_alert, param_value_to_str
 
 import numpy as np
 import time
@@ -44,4 +44,8 @@ class TestSoundd:
     assert np.all(np.isfinite(styled))
     assert np.max(np.abs(styled)) <= 1.0
     assert not np.allclose(styled, samples)
+
+  def test_param_value_to_str(self):
+    assert param_value_to_str(b"/tmp/kitt_speech_test.wav") == "/tmp/kitt_speech_test.wav"
+    assert param_value_to_str("/tmp/kitt_speech_test.wav") == "/tmp/kitt_speech_test.wav"
 
