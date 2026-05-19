@@ -34,6 +34,9 @@ DESCRIPTIONS = {
   "KittVoiceControl": tr_noop(
     "Listen for limited KITT voice commands while driving. This proof of concept only enables safe UI commands."
   ),
+  "KittTrafficMonitor": tr_noop(
+    "Monitor camera frames for stop signs and traffic lights, then show KITT-only visual indicators. This does not control the car."
+  ),
 }
 
 
@@ -91,6 +94,12 @@ class TogglesLayout(Widget):
         lambda: tr("KITT Voice Commands"),
         DESCRIPTIONS["KittVoiceControl"],
         "microphone.png",
+        True,
+      ),
+      "KittTrafficMonitor": (
+        lambda: tr("KITT Traffic Monitor"),
+        DESCRIPTIONS["KittTrafficMonitor"],
+        "experimental_white.png",
         True,
       ),
       "IsMetric": (

@@ -826,6 +826,8 @@ dependencies = [
     { name = "libyuv" },
     { name = "ncurses" },
     { name = "numpy" },
+    { name = "onnxruntime" },
+    { name = "opencv-python-headless" },
     { name = "pillow" },
     { name = "piper-tts" },
     { name = "psutil" },
@@ -856,7 +858,6 @@ dependencies = [
 [package.optional-dependencies]
 dev = [
     { name = "matplotlib" },
-    { name = "opencv-python-headless" },
 ]
 docs = [
     { name = "jinja2" },
@@ -910,7 +911,8 @@ requires-dist = [
     { name = "mkdocs", marker = "extra == 'docs'" },
     { name = "ncurses", git = "https://github.com/commaai/dependencies.git?subdirectory=ncurses&rev=releases" },
     { name = "numpy", specifier = ">=2.0" },
-    { name = "opencv-python-headless", marker = "extra == 'dev'" },
+    { name = "onnxruntime" },
+    { name = "opencv-python-headless" },
     { name = "pillow" },
     { name = "piper-tts", specifier = ">=1.4.2" },
     { name = "pre-commit-hooks", marker = "extra == 'testing'" },

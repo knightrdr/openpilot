@@ -11,6 +11,8 @@ authors = [
 dependencies = [
   # multiple users
   "sounddevice",  # micd + soundd
+  "opencv-python-headless",  # KITT traffic object monitor
+  "onnxruntime",  # KITT traffic object monitor
   "piper-tts >=1.4.2",  # KITT offline voice replies
   "vosk >=0.3.45",  # KITT offline voice recognition
   "pyserial",     # pigeond + qcomgpsd
@@ -104,7 +106,6 @@ testing = [
 
 dev = [
   "matplotlib",
-  "opencv-python-headless",
 ]
 
 tools = [

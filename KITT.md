@@ -45,6 +45,24 @@ Initial supported phrases:
 
 Spoken replies are routed through `soundd`, so normal openpilot alert sounds keep priority. KITT applies an original voice-style effect to Piper output for a deeper, more synthetic dashboard-computer tone without cloning any actor's voice.
 
+To check whether the required voice models are installed on the device:
+
+```bash
+cd /data/openpilot
+./tools/kitt/check_models.sh
+```
+
+## Traffic Monitor
+
+KITT Traffic Monitor is disabled by default. Enable `KITT Traffic Monitor` in settings, then install the object detector model on the device:
+
+```bash
+cd /data/openpilot
+./tools/kitt/install_traffic_model.sh
+```
+
+The monitor uses a COCO object detector for stop signs and traffic lights, then classifies traffic-light crops as red, yellow, or green by color. It only displays monitor indicators; it does not control braking or steering.
+
 ## Safety Rules
 
 Treat changes to steering, braking, acceleration, CAN messages, safety hooks, and driver monitoring as safety-critical. Keep those changes isolated in focused commits and test them before road use.

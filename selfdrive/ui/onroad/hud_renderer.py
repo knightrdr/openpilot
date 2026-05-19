@@ -1,6 +1,9 @@
+import json
+import time
 import pyray as rl
 from dataclasses import dataclass
 from openpilot.common.constants import CV
+from openpilot.common.params import Params
 from openpilot.selfdrive.ui.onroad.exp_button import ExpButton
 from openpilot.selfdrive.ui.ui_state import ui_state, UIStatus
 from openpilot.system.ui.lib.application import gui_app, FontWeight
@@ -27,6 +30,9 @@ class UIConfig:
   brake_badge_height: int = 64
   model_badge_width: int = 340
   model_badge_height: int = 64
+  traffic_badge_width: int = 220
+  traffic_badge_height: int = 58
+  traffic_badge_gap: int = 14
 
 
 @dataclass(frozen=True)
@@ -37,6 +43,7 @@ class FontSizes:
   set_speed: int = 90
   brake_badge: int = 36
   model_badge: int = 34
+  traffic_badge: int = 28
 
 
 @dataclass(frozen=True)
@@ -59,6 +66,10 @@ class Colors:
   KITT_OP_BRAKE_BG = rl.Color(240, 145, 35, 215)
   KITT_MODEL_STOP_BG = rl.Color(175, 40, 215, 215)
   KITT_MODEL_DECEL_BG = rl.Color(64, 116, 220, 205)
+  KITT_STOP_SIGN_BG = rl.Color(215, 30, 45, 220)
+  KITT_RED_LIGHT_BG = rl.Color(220, 25, 25, 220)
+  KITT_YELLOW_LIGHT_BG = rl.Color(220, 170, 20, 220)
+  KITT_GREEN_LIGHT_BG = rl.Color(40, 175, 80, 220)
 
 
 UI_CONFIG = UIConfig()
@@ -79,7 +90,10 @@ class HudRenderer(Widget):
     self.openpilot_brake_active: bool = False
     self.model_stop_active: bool = False
     self.model_decel_active: bool = False
+    self.traffic_state: dict[str, object] = {}
+    self._last_traffic_read_t = 0.0
 
+    self._params = Params()
     self._font_semi_bold: rl.Font = gui_app.font(FontWeight.SEMI_BOLD)
     self._font_bold: rl.Font = gui_app.font(FontWeight.BOLD)
     self._font_medium: rl.Font = gui_app.font(FontWeight.MEDIUM)
@@ -120,6 +134,7 @@ class HudRenderer(Widget):
     self.openpilot_brake_active = car_control.longActive and car_control.actuators.accel < -0.05 and not self.driver_brake_active
     self.model_stop_active = model_action.shouldStop
     self.model_decel_active = model_action.desiredAcceleration < -0.5 and not self.model_stop_active
+    self._update_traffic_state()
 
   def _render(self, rect: rl.Rectangle) -> None:
     """Render HUD elements to the screen."""
@@ -139,6 +154,7 @@ class HudRenderer(Widget):
     self._draw_current_speed(rect)
     self._draw_brake_status(rect)
     self._draw_model_stop_status(rect)
+    self._draw_traffic_status(rect)
 
     button_x = rect.x + rect.width - UI_CONFIG.border_size - UI_CONFIG.button_size
     button_y = rect.y + UI_CONFIG.border_size
@@ -202,6 +218,22 @@ class HudRenderer(Widget):
     unit_pos = rl.Vector2(rect.x + rect.width / 2 - unit_text_size.x / 2, 290 - unit_text_size.y / 2)
     rl.draw_text_ex(self._font_medium, unit_text, unit_pos, FONT_SIZES.speed_unit, 0, COLORS.WHITE_TRANSLUCENT)
 
+  def _update_traffic_state(self) -> None:
+    now = time.monotonic()
+    if now - self._last_traffic_read_t < 0.25:
+      return
+    self._last_traffic_read_t = now
+
+    state = self._params.get("KittTrafficState")
+    if not state:
+      self.traffic_state = {}
+      return
+
+    try:
+      self.traffic_state = state if isinstance(state, dict) else json.loads(state.decode("utf-8", "replace"))
+    except (AttributeError, json.JSONDecodeError):
+      self.traffic_state = {}
+
   def _draw_brake_status(self, rect: rl.Rectangle) -> None:
     """Draw KITT brake/decel status when braking is active."""
     if self.driver_brake_active:
@@ -251,3 +283,38 @@ class HudRenderer(Widget):
       badge_rect.y + (badge_rect.height - text_size.y) / 2,
     )
     rl.draw_text_ex(self._font_semi_bold, text, text_pos, FONT_SIZES.model_badge, 0, COLORS.WHITE)
+
+  def _draw_traffic_status(self, rect: rl.Rectangle) -> None:
+    """Draw monitor-only stop-sign and traffic-light detections."""
+    if not self.traffic_state:
+      return
+
+    detections = [
+      ("stop_sign", tr("STOP SIGN"), COLORS.KITT_STOP_SIGN_BG),
+      ("red_light", tr("RED LIGHT"), COLORS.KITT_RED_LIGHT_BG),
+      ("yellow_light", tr("YELLOW LIGHT"), COLORS.KITT_YELLOW_LIGHT_BG),
+      ("green_light", tr("GREEN LIGHT"), COLORS.KITT_GREEN_LIGHT_BG),
+    ]
+    active = [(text, color) for key, text, color in detections if self.traffic_state.get(key)]
+    if not active:
+      return
+
+    count = len(active)
+    total_width = count * UI_CONFIG.traffic_badge_width + (count - 1) * UI_CONFIG.traffic_badge_gap
+    x = rect.x + rect.width / 2 - total_width / 2
+    y = rect.y + 485
+
+    for idx, (text, color) in enumerate(active):
+      badge_rect = rl.Rectangle(
+        x + idx * (UI_CONFIG.traffic_badge_width + UI_CONFIG.traffic_badge_gap),
+        y,
+        UI_CONFIG.traffic_badge_width,
+        UI_CONFIG.traffic_badge_height,
+      )
+      rl.draw_rectangle_rounded(badge_rect, 0.32, 10, color)
+      text_size = measure_text_cached(self._font_semi_bold, text, FONT_SIZES.traffic_badge)
+      text_pos = rl.Vector2(
+        badge_rect.x + (badge_rect.width - text_size.x) / 2,
+        badge_rect.y + (badge_rect.height - text_size.y) / 2,
+      )
+      rl.draw_text_ex(self._font_semi_bold, text, text_pos, FONT_SIZES.traffic_badge, 0, COLORS.WHITE)
