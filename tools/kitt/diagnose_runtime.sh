@@ -17,6 +17,8 @@ from openpilot.common.params import Params
 
 p = Params()
 for key in [
+  "IsOnroad",
+  "ControlsReady",
   "KittVoiceControl",
   "KittTrafficMonitor",
   "KittVoiceLastResult",
@@ -32,4 +34,4 @@ PY
 
 echo
 echo "== processes =="
-pgrep -af "soundd|kittvoiced|kitttrafficd|manager" || true
+ps -eo pid,ppid,stat,args | grep -E "selfdrive.kitt|selfdrive.ui.soundd|manager.py|camerad" | grep -v grep || true

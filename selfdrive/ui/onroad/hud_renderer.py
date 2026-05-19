@@ -70,6 +70,7 @@ class Colors:
   KITT_RED_LIGHT_BG = rl.Color(220, 25, 25, 220)
   KITT_YELLOW_LIGHT_BG = rl.Color(220, 170, 20, 220)
   KITT_GREEN_LIGHT_BG = rl.Color(40, 175, 80, 220)
+  KITT_TRAFFIC_INACTIVE_BG = rl.Color(70, 76, 88, 145)
 
 
 UI_CONFIG = UIConfig()
@@ -300,16 +301,21 @@ class HudRenderer(Widget):
       ("yellow_light", tr("YELLOW LIGHT"), COLORS.KITT_YELLOW_LIGHT_BG),
       ("green_light", tr("GREEN LIGHT"), COLORS.KITT_GREEN_LIGHT_BG),
     ]
-    active = [(text, color) for key, text, color in detections if self.traffic_state.get(key)]
-    if not active:
+
+    status = self.traffic_state.get("status")
+    if status != "ready" and not any(self.traffic_state.get(key) for key, _, _ in detections):
       return
 
-    count = len(active)
+    badges = [
+      (text, color if self.traffic_state.get(key) else COLORS.KITT_TRAFFIC_INACTIVE_BG)
+      for key, text, color in detections
+    ]
+    count = len(badges)
     total_width = count * UI_CONFIG.traffic_badge_width + (count - 1) * UI_CONFIG.traffic_badge_gap
     x = rect.x + rect.width / 2 - total_width / 2
     y = rect.y + 485
 
-    for idx, (text, color) in enumerate(active):
+    for idx, (text, color) in enumerate(badges):
       badge_rect = rl.Rectangle(
         x + idx * (UI_CONFIG.traffic_badge_width + UI_CONFIG.traffic_badge_gap),
         y,
