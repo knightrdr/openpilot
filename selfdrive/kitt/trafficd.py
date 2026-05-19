@@ -18,7 +18,8 @@ MODEL_PATH = "/data/openpilot/kitt/yolov8n.onnx"
 MODEL_INPUT_SIZE = 640
 DETECTION_PERIOD = 1.0
 STATE_TTL = 1.6
-CONF_THRESHOLD = 0.28
+CONF_THRESHOLD = 0.15
+DEBUG_CONF_THRESHOLD = 0.05
 IOU_THRESHOLD = 0.45
 TRAFFIC_LIGHT_CLASS = 9
 STOP_SIGN_CLASS = 11
@@ -29,6 +30,18 @@ class Detection:
   cls: int
   conf: float
   box: tuple[int, int, int, int]
+
+
+def normalize_yolov8_prediction(output: np.ndarray) -> np.ndarray | None:
+  pred = np.squeeze(output)
+  if pred.ndim != 2:
+    return None
+
+  # Ultralytics ONNX commonly returns [84, anchors], but some runtimes or
+  # tests use [anchors, 84]. Normalize to one prediction per row.
+  if pred.shape[1] < 6 or (pred.shape[0] <= 200 and pred.shape[0] < pred.shape[1]):
+    pred = pred.T
+  return pred
 
 
 def letterbox(image: np.ndarray, size: int = MODEL_INPUT_SIZE) -> tuple[np.ndarray, float, tuple[int, int]]:
@@ -75,11 +88,9 @@ def nms(detections: list[Detection], iou_threshold: float = IOU_THRESHOLD) -> li
 
 
 def parse_yolov8(output: np.ndarray, image_shape: tuple[int, int], scale: float, pad: tuple[int, int]) -> list[Detection]:
-  pred = np.squeeze(output)
-  if pred.ndim != 2:
+  pred = normalize_yolov8_prediction(output)
+  if pred is None:
     return []
-  if pred.shape[0] < pred.shape[1]:
-    pred = pred.T
 
   h, w = image_shape
   pad_x, pad_y = pad
@@ -106,6 +117,35 @@ def parse_yolov8(output: np.ndarray, image_shape: tuple[int, int], scale: float,
     detections.append(Detection(cls, conf, (x1, y1, x2, y2)))
 
   return nms(detections)
+
+
+def traffic_candidate_stats(output: np.ndarray) -> dict[str, float | int]:
+  pred = normalize_yolov8_prediction(output)
+  if pred is None:
+    return {
+      "traffic_light_candidates": 0,
+      "stop_sign_candidates": 0,
+      "traffic_light_max_conf": 0.0,
+      "stop_sign_max_conf": 0.0,
+    }
+
+  class_scores = pred[:, 4:]
+  if class_scores.shape[1] <= max(TRAFFIC_LIGHT_CLASS, STOP_SIGN_CLASS):
+    return {
+      "traffic_light_candidates": 0,
+      "stop_sign_candidates": 0,
+      "traffic_light_max_conf": 0.0,
+      "stop_sign_max_conf": 0.0,
+    }
+
+  traffic_scores = class_scores[:, TRAFFIC_LIGHT_CLASS]
+  stop_scores = class_scores[:, STOP_SIGN_CLASS]
+  return {
+    "traffic_light_candidates": int(np.count_nonzero(traffic_scores >= DEBUG_CONF_THRESHOLD)),
+    "stop_sign_candidates": int(np.count_nonzero(stop_scores >= DEBUG_CONF_THRESHOLD)),
+    "traffic_light_max_conf": float(np.max(traffic_scores)) if traffic_scores.size else 0.0,
+    "stop_sign_max_conf": float(np.max(stop_scores)) if stop_scores.size else 0.0,
+  }
 
 
 def classify_light_color(frame_bgr: np.ndarray, box: tuple[int, int, int, int]) -> tuple[str | None, float]:
@@ -195,6 +235,7 @@ class TrafficMonitor:
     blob = image.transpose(2, 0, 1)[np.newaxis].astype(np.float32) / 255.0
     output = self.session.run(None, {self.input_name: blob})[0]
     detections = parse_yolov8(output, frame_bgr.shape[:2], scale, pad)
+    stats = traffic_candidate_stats(output)
 
     state: dict[str, float | bool | str] = {
       "status": "ready",
@@ -207,6 +248,7 @@ class TrafficMonitor:
       "red_light_conf": 0.0,
       "yellow_light_conf": 0.0,
       "green_light_conf": 0.0,
+      **stats,
     }
 
     for detection in detections:

@@ -22,6 +22,8 @@ add_kitt_site_packages()
 
 COMMAND_PREFIXES = ("kitt", "kit", "kid")
 COMMAND_COOLDOWN = 2.0
+REPEAT_COMMAND_COOLDOWN = 12.0
+SPEECH_FEEDBACK_MUTE_SECONDS = 4.0
 VOSK_MODEL_PATH = "/data/openpilot/kitt/vosk-model"
 PIPER_MODEL_PATH = "/data/openpilot/kitt/piper-voice/en_US-lessac-medium.onnx"
 PIPER_SPEECH_DIR = "/tmp"
@@ -155,6 +157,9 @@ class KittVoice:
     self.recognizer = OptionalVoskRecognizer()
     self.speaker = OptionalPiperSpeaker()
     self.last_command_time = 0.0
+    self.last_phrase = ""
+    self.last_phrase_time = 0.0
+    self.muted_until = 0.0
     self.noise_floor = 0.0
 
     self._set_result(f"voice daemon started; recognizer={self.recognizer.reason}; speaker={self.speaker.reason}")
@@ -168,13 +173,20 @@ class KittVoice:
   def _speak(self, text: str) -> None:
     speech_file = self.speaker.speak(text)
     if speech_file is not None:
+      self.muted_until = time.monotonic() + SPEECH_FEEDBACK_MUTE_SECONDS
       self.params.put("KittSpeechFile", speech_file)
 
   def _execute(self, command: VoiceCommand) -> None:
     now = time.monotonic()
     if now - self.last_command_time < COMMAND_COOLDOWN:
       return
+    normalized = normalize_phrase(command.phrase)
+    if normalized == self.last_phrase and now - self.last_phrase_time < REPEAT_COMMAND_COOLDOWN:
+      self._set_result(f"ignored repeated command: {command.phrase}")
+      return
     self.last_command_time = now
+    self.last_phrase = normalized
+    self.last_phrase_time = now
     self._set_command(command)
 
     if command.action == "show_settings":
@@ -207,6 +219,9 @@ class KittVoice:
     self._execute(command)
 
   def _handle_audio(self) -> None:
+    if time.monotonic() < self.muted_until:
+      return
+
     if not self.sm.updated["rawAudioData"]:
       return
 
