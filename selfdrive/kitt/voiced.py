@@ -14,6 +14,10 @@ from cereal import messaging
 from openpilot.common.params import Params
 from openpilot.common.realtime import Ratekeeper
 from openpilot.common.swaglog import cloudlog
+from openpilot.selfdrive.kitt.python_env import add_kitt_site_packages
+
+
+add_kitt_site_packages()
 
 
 COMMAND_PREFIXES = ("kitt", "kit", "kid")

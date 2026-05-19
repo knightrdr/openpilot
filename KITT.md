@@ -34,6 +34,7 @@ The voice process is disabled by default. Enable `KITT Voice Commands` in settin
 
 ```bash
 cd /data/openpilot
+./tools/kitt/install_python_packages.sh
 ./tools/kitt/install_vosk_model.sh
 ./tools/kitt/install_piper_voice.sh
 ```
@@ -58,6 +59,7 @@ KITT Traffic Monitor is disabled by default. Enable `KITT Traffic Monitor` in se
 
 ```bash
 cd /data/openpilot
+./tools/kitt/install_python_packages.sh
 ./tools/kitt/install_traffic_model.sh
 ```
 

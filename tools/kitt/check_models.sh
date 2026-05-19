@@ -15,3 +15,13 @@ for path in "${paths[@]}"; do
     echo "MISSING $path"
   fi
 done
+
+PYTHONPATH="/data/openpilot/kitt/site-packages:${PYTHONPATH:-}" /usr/local/venv/bin/python - <<'PY'
+mods = ["vosk", "piper", "onnxruntime", "cv2"]
+for mod in mods:
+  try:
+    __import__(mod)
+    print(f"OK      python:{mod}")
+  except Exception as e:
+    print(f"MISSING python:{mod} ({e})")
+PY

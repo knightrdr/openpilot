@@ -8,6 +8,10 @@ import numpy as np
 from openpilot.common.params import Params
 from openpilot.common.realtime import Ratekeeper
 from openpilot.common.swaglog import cloudlog
+from openpilot.selfdrive.kitt.python_env import add_kitt_site_packages
+
+
+add_kitt_site_packages()
 
 
 MODEL_PATH = "/data/openpilot/kitt/yolov8n.onnx"
