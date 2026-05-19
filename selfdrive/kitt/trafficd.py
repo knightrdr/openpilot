@@ -3,9 +3,7 @@ import os
 import time
 from dataclasses import dataclass
 
-import cv2
 import numpy as np
-import onnxruntime as ort
 
 from openpilot.common.params import Params
 from openpilot.common.realtime import Ratekeeper
@@ -30,6 +28,8 @@ class Detection:
 
 
 def letterbox(image: np.ndarray, size: int = MODEL_INPUT_SIZE) -> tuple[np.ndarray, float, tuple[int, int]]:
+  import cv2
+
   h, w = image.shape[:2]
   scale = min(size / h, size / w)
   new_w, new_h = int(round(w * scale)), int(round(h * scale))
@@ -105,6 +105,8 @@ def parse_yolov8(output: np.ndarray, image_shape: tuple[int, int], scale: float,
 
 
 def classify_light_color(frame_bgr: np.ndarray, box: tuple[int, int, int, int]) -> tuple[str | None, float]:
+  import cv2
+
   x1, y1, x2, y2 = box
   crop = frame_bgr[y1:y2, x1:x2]
   if crop.size == 0:
@@ -134,13 +136,19 @@ class TrafficMonitor:
     self.rk = Ratekeeper(20)
     self.last_detection_t = 0.0
     self.last_state: dict[str, float | bool | str] = {}
-    self.session: ort.InferenceSession | None = None
+    self.session = None
     self.input_name = ""
 
   def _set_status(self, status: str) -> None:
     self.params.put("KittTrafficState", {"status": status, "ts": time.monotonic()})
 
   def _load_model(self) -> bool:
+    try:
+      import onnxruntime as ort
+    except ImportError:
+      self._set_status("missing dependency: onnxruntime")
+      return False
+
     if not os.path.isfile(MODEL_PATH):
       self._set_status(f"missing model: {MODEL_PATH}")
       return False
@@ -171,6 +179,8 @@ class TrafficMonitor:
     return client
 
   def _frame_to_bgr(self, client, buf) -> np.ndarray:
+    import cv2
+
     yuv = np.frombuffer(buf.data, dtype=np.uint8, count=client.width * client.height * 3 // 2)
     yuv = yuv.reshape((client.height * 3 // 2, client.width))
     return cv2.cvtColor(yuv, cv2.COLOR_YUV2BGR_NV12)
