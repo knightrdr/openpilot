@@ -24,6 +24,7 @@ for key in [
   "KittVoiceLastResult",
   "KittVoiceLastCommand",
   "KittTrafficState",
+  "KittTrafficFusionState",
   "KittTrafficCamera",
   "KittSpeechFile",
 ]:

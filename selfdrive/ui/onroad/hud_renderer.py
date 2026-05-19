@@ -30,6 +30,8 @@ class UIConfig:
   brake_badge_height: int = 64
   model_badge_width: int = 340
   model_badge_height: int = 64
+  fusion_badge_width: int = 520
+  fusion_badge_height: int = 64
   traffic_badge_width: int = 220
   traffic_badge_height: int = 58
   traffic_badge_gap: int = 14
@@ -66,6 +68,9 @@ class Colors:
   KITT_OP_BRAKE_BG = rl.Color(240, 145, 35, 215)
   KITT_MODEL_STOP_BG = rl.Color(175, 40, 215, 215)
   KITT_MODEL_DECEL_BG = rl.Color(64, 116, 220, 205)
+  KITT_FUSION_HIGH_BG = rl.Color(215, 30, 45, 225)
+  KITT_FUSION_MEDIUM_BG = rl.Color(225, 135, 35, 220)
+  KITT_FUSION_LOW_BG = rl.Color(64, 116, 220, 205)
   KITT_STOP_SIGN_BG = rl.Color(215, 30, 45, 220)
   KITT_RED_LIGHT_BG = rl.Color(220, 25, 25, 220)
   KITT_YELLOW_LIGHT_BG = rl.Color(220, 170, 20, 220)
@@ -92,6 +97,7 @@ class HudRenderer(Widget):
     self.model_stop_active: bool = False
     self.model_decel_active: bool = False
     self.traffic_state: dict[str, object] = {}
+    self.traffic_fusion_state: dict[str, object] = {}
     self._last_traffic_read_t = 0.0
 
     self._params = Params()
@@ -155,6 +161,7 @@ class HudRenderer(Widget):
     self._draw_current_speed(rect)
     self._draw_brake_status(rect)
     self._draw_model_stop_status(rect)
+    self._draw_traffic_fusion_status(rect)
     self._draw_traffic_status(rect)
 
     button_x = rect.x + rect.width - UI_CONFIG.border_size - UI_CONFIG.button_size
@@ -226,19 +233,23 @@ class HudRenderer(Widget):
     self._last_traffic_read_t = now
 
     state = self._params.get("KittTrafficState")
-    if not state:
-      self.traffic_state = {}
-      return
+    fusion_state = self._params.get("KittTrafficFusionState")
+    self.traffic_state = self._decode_state_param(state)
+    self.traffic_fusion_state = self._decode_state_param(fusion_state)
 
+  @staticmethod
+  def _decode_state_param(state) -> dict[str, object]:
+    if not state:
+      return {}
     try:
       if isinstance(state, dict):
-        self.traffic_state = state
+        return state
       elif isinstance(state, bytes):
-        self.traffic_state = json.loads(state.decode("utf-8", "replace"))
+        return json.loads(state.decode("utf-8", "replace"))
       else:
-        self.traffic_state = json.loads(str(state))
+        return json.loads(str(state))
     except (AttributeError, json.JSONDecodeError):
-      self.traffic_state = {}
+      return {}
 
   def _draw_brake_status(self, rect: rl.Rectangle) -> None:
     """Draw KITT brake/decel status when braking is active."""
@@ -290,6 +301,37 @@ class HudRenderer(Widget):
     )
     rl.draw_text_ex(self._font_semi_bold, text, text_pos, FONT_SIZES.model_badge, 0, COLORS.WHITE)
 
+  def _draw_traffic_fusion_status(self, rect: rl.Rectangle) -> None:
+    """Draw fused model-intent/object-detector stop-control status."""
+    if not self.traffic_fusion_state:
+      return
+
+    level = self.traffic_fusion_state.get("level")
+    if level in (None, "none"):
+      return
+
+    label = str(self.traffic_fusion_state.get("label") or "POSSIBLE STOP CONTROL")
+    if level == "high":
+      bg_color = COLORS.KITT_FUSION_HIGH_BG
+    elif level == "medium":
+      bg_color = COLORS.KITT_FUSION_MEDIUM_BG
+    else:
+      bg_color = COLORS.KITT_FUSION_LOW_BG
+
+    badge_rect = rl.Rectangle(
+      rect.x + rect.width / 2 - UI_CONFIG.fusion_badge_width / 2,
+      rect.y + 485,
+      UI_CONFIG.fusion_badge_width,
+      UI_CONFIG.fusion_badge_height,
+    )
+    rl.draw_rectangle_rounded(badge_rect, 0.35, 10, bg_color)
+    text_size = measure_text_cached(self._font_semi_bold, label, FONT_SIZES.model_badge)
+    text_pos = rl.Vector2(
+      badge_rect.x + (badge_rect.width - text_size.x) / 2,
+      badge_rect.y + (badge_rect.height - text_size.y) / 2,
+    )
+    rl.draw_text_ex(self._font_semi_bold, label, text_pos, FONT_SIZES.model_badge, 0, COLORS.WHITE)
+
   def _draw_traffic_status(self, rect: rl.Rectangle) -> None:
     """Draw monitor-only stop-sign and traffic-light detections."""
     if not self.traffic_state:
@@ -313,7 +355,7 @@ class HudRenderer(Widget):
     count = len(badges)
     total_width = count * UI_CONFIG.traffic_badge_width + (count - 1) * UI_CONFIG.traffic_badge_gap
     x = rect.x + rect.width / 2 - total_width / 2
-    y = rect.y + 485
+    y = rect.y + 560
 
     for idx, (text, color) in enumerate(badges):
       badge_rect = rl.Rectangle(

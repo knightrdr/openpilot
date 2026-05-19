@@ -72,6 +72,8 @@ inline static std::unordered_map<std::string, ParamKeyAttributes> keys = {
     {"KittVoiceLastResult", {CLEAR_ON_MANAGER_START | DONT_LOG, STRING}},
     {"KittSpeechFile", {CLEAR_ON_MANAGER_START | DONT_LOG, STRING}},
     {"KittTrafficMonitor", {PERSISTENT, BOOL, "0"}},
+    {"KittTrafficCamera", {CLEAR_ON_MANAGER_START | CLEAR_ON_OFFROAD_TRANSITION | DONT_LOG, STRING}},
+    {"KittTrafficFusionState", {CLEAR_ON_MANAGER_START | CLEAR_ON_OFFROAD_TRANSITION | DONT_LOG, JSON}},
     {"KittTrafficState", {CLEAR_ON_MANAGER_START | CLEAR_ON_OFFROAD_TRANSITION | DONT_LOG, JSON}},
     {"KittUiCommand", {CLEAR_ON_MANAGER_START | DONT_LOG, STRING}},
     {"LanguageSetting", {PERSISTENT, STRING, "en"}},
