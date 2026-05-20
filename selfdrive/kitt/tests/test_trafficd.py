@@ -81,3 +81,39 @@ def test_detect_converts_bgr_to_rgb(monkeypatch):
   monitor._detect(frame_bgr)
 
   np.testing.assert_allclose(captured["pixel"], [30 / 255.0, 20 / 255.0, 10 / 255.0])
+
+
+def test_publish_state_updates_drive_summary(monkeypatch):
+  puts = {}
+
+  class FakeParams:
+    def put(self, key, value):
+      puts[key] = value
+
+  monitor = TrafficMonitor()
+  monitor.params = FakeParams()
+  state = {
+    "ts": 123.0,
+    "stop_sign": True,
+    "red_light": False,
+    "yellow_light": False,
+    "green_light": False,
+    "stop_sign_conf": 0.3,
+    "red_light_conf": 0.0,
+    "yellow_light_conf": 0.0,
+    "green_light_conf": 0.0,
+    "stop_sign_candidates": 2,
+    "traffic_light_candidates": 1,
+    "stop_sign_max_conf": 0.4,
+    "traffic_light_max_conf": 0.2,
+  }
+
+  monitor._publish_state(state)
+
+  assert puts["KittTrafficState"] == state
+  assert puts["KittTrafficLastState"] == state
+  summary = puts["KittTrafficDriveSummary"]
+  assert summary["frames"] == 1
+  assert summary["stop_sign_seen"] is True
+  assert summary["max_stop_sign_conf"] == 0.3
+  assert summary["max_stop_sign_candidates"] == 2

@@ -122,6 +122,47 @@ class KittTrafficFusion:
     self.params = Params()
     self.sm = messaging.SubMaster(["modelV2", "carState", "radarState"], poll="modelV2")
     self.rk = Ratekeeper(20)
+    self.summary: dict[str, float | int | bool | str] = {
+      "status": "ready",
+      "started_ts": time.monotonic(),
+      "last_ts": 0.0,
+      "frames": 0,
+      "last_label": "NO STOP CONTROL",
+      "high_count": 0,
+      "medium_count": 0,
+      "low_count": 0,
+      "lead_vehicle_decel_count": 0,
+      "possible_stop_control_count": 0,
+      "confirmed_stop_control_count": 0,
+      "max_object_conf": 0.0,
+      "min_desired_accel": 0.0,
+      "model_stop_seen": False,
+      "lead_relevant_seen": False,
+    }
+
+  def _publish_state(self, state: dict[str, bool | float | str]) -> None:
+    self.params.put("KittTrafficFusionState", state)
+    self.params.put("KittTrafficFusionLastState", state)
+
+    level = str(state.get("level", "none"))
+    label = str(state.get("label", "NO STOP CONTROL"))
+    self.summary["last_ts"] = float(state.get("ts", time.monotonic()))
+    self.summary["frames"] = int(self.summary["frames"]) + 1
+    self.summary["last_label"] = label
+    if level in ("high", "medium", "low"):
+      self.summary[f"{level}_count"] = int(self.summary.get(f"{level}_count", 0)) + 1
+    if label == "LEAD VEHICLE DECEL":
+      self.summary["lead_vehicle_decel_count"] = int(self.summary["lead_vehicle_decel_count"]) + 1
+    elif label == "POSSIBLE STOP CONTROL":
+      self.summary["possible_stop_control_count"] = int(self.summary["possible_stop_control_count"]) + 1
+    elif label == "CONFIRMED STOP CONTROL":
+      self.summary["confirmed_stop_control_count"] = int(self.summary["confirmed_stop_control_count"]) + 1
+
+    self.summary["max_object_conf"] = max(float(self.summary["max_object_conf"]), float(state.get("object_conf", 0.0) or 0.0))
+    self.summary["min_desired_accel"] = min(float(self.summary["min_desired_accel"]), float(state.get("desired_accel", 0.0) or 0.0))
+    self.summary["model_stop_seen"] = bool(self.summary["model_stop_seen"] or state.get("model_stop", False))
+    self.summary["lead_relevant_seen"] = bool(self.summary["lead_relevant_seen"] or state.get("lead_relevant", False))
+    self.params.put("KittTrafficFusionDriveSummary", self.summary)
 
   def run(self) -> None:
     while True:
@@ -129,7 +170,7 @@ class KittTrafficFusion:
       if self.sm.updated["modelV2"]:
         traffic_state = decode_param_value(self.params.get("KittTrafficState"))
         fusion_state = build_fusion_state(self.sm["modelV2"].action, traffic_state, self.sm["carState"].vEgo, self.sm["radarState"])
-        self.params.put("KittTrafficFusionState", fusion_state)
+        self._publish_state(fusion_state)
       self.rk.keep_time()
 
 

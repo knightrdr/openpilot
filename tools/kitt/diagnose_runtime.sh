@@ -24,8 +24,13 @@ for key in [
   "KittVoiceLastResult",
   "KittVoiceLastCommand",
   "KittTrafficState",
+  "KittTrafficLastState",
+  "KittTrafficDriveSummary",
   "KittTrafficFusionState",
+  "KittTrafficFusionLastState",
+  "KittTrafficFusionDriveSummary",
   "KittTrafficCamera",
+  "KittTrafficLastCamera",
   "KittSpeechFile",
 ]:
   try:

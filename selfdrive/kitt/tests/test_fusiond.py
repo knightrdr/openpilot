@@ -1,6 +1,6 @@
 from types import SimpleNamespace
 
-from openpilot.selfdrive.kitt.fusiond import build_fusion_state, decode_param_value
+from openpilot.selfdrive.kitt.fusiond import KittTrafficFusion, build_fusion_state, decode_param_value
 
 
 def action(accel=-0.1, stop=False):
@@ -54,3 +54,34 @@ def test_fusion_identifies_relevant_lead_decel():
 def test_object_candidate_overrides_lead_decel_label():
   state = build_fusion_state(action(accel=-0.7), {"stop_sign": True}, 12.0, radar(status=True, d_rel=20.0, v_rel=-1.0))
   assert state["label"] == "POSSIBLE STOP CONTROL"
+
+
+def test_publish_state_updates_fusion_summary():
+  puts = {}
+
+  class FakeParams:
+    def put(self, key, value):
+      puts[key] = value
+
+  fusion = KittTrafficFusion()
+  fusion.params = FakeParams()
+  state = {
+    "ts": 456.0,
+    "level": "medium",
+    "label": "POSSIBLE STOP CONTROL",
+    "object_conf": 0.12,
+    "desired_accel": -0.8,
+    "model_stop": False,
+    "lead_relevant": False,
+  }
+
+  fusion._publish_state(state)
+
+  assert puts["KittTrafficFusionState"] == state
+  assert puts["KittTrafficFusionLastState"] == state
+  summary = puts["KittTrafficFusionDriveSummary"]
+  assert summary["frames"] == 1
+  assert summary["medium_count"] == 1
+  assert summary["possible_stop_control_count"] == 1
+  assert summary["max_object_conf"] == 0.12
+  assert summary["min_desired_accel"] == -0.8

@@ -180,11 +180,31 @@ class TrafficMonitor:
     self.rk = Ratekeeper(20)
     self.last_detection_t = 0.0
     self.last_state: dict[str, float | bool | str] = {}
+    self.summary: dict[str, float | int | bool | str] = {
+      "status": "ready",
+      "started_ts": time.monotonic(),
+      "last_ts": 0.0,
+      "frames": 0,
+      "stop_sign_seen": False,
+      "red_light_seen": False,
+      "yellow_light_seen": False,
+      "green_light_seen": False,
+      "max_stop_sign_conf": 0.0,
+      "max_red_light_conf": 0.0,
+      "max_yellow_light_conf": 0.0,
+      "max_green_light_conf": 0.0,
+      "max_stop_sign_candidates": 0,
+      "max_traffic_light_candidates": 0,
+      "max_stop_sign_candidate_conf": 0.0,
+      "max_traffic_light_candidate_conf": 0.0,
+    }
     self.session = None
     self.input_name = ""
 
   def _set_status(self, status: str) -> None:
-    self.params.put("KittTrafficState", {"status": status, "ts": time.monotonic()})
+    state = {"status": status, "ts": time.monotonic()}
+    self.params.put("KittTrafficState", state)
+    self.params.put("KittTrafficLastState", state)
 
   def _load_model(self) -> bool:
     try:
@@ -220,8 +240,23 @@ class TrafficMonitor:
     while not client.connect(False):
       time.sleep(0.1)
     self.params.put("KittTrafficCamera", str(stream))
+    self.params.put("KittTrafficLastCamera", str(stream))
     cloudlog.info(f"kitttrafficd connected camera {stream=} {client.width}x{client.height}")
     return client
+
+  def _publish_state(self, state: dict[str, float | bool | str]) -> None:
+    self.params.put("KittTrafficState", state)
+    self.params.put("KittTrafficLastState", state)
+    self.summary["last_ts"] = float(state.get("ts", time.monotonic()))
+    self.summary["frames"] = int(self.summary["frames"]) + 1
+    for key in ("stop_sign", "red_light", "yellow_light", "green_light"):
+      self.summary[f"{key}_seen"] = bool(self.summary.get(f"{key}_seen", False) or state.get(key, False))
+      self.summary[f"max_{key}_conf"] = max(float(self.summary.get(f"max_{key}_conf", 0.0)), float(state.get(f"{key}_conf", 0.0) or 0.0))
+    self.summary["max_stop_sign_candidates"] = max(int(self.summary["max_stop_sign_candidates"]), int(state.get("stop_sign_candidates", 0) or 0))
+    self.summary["max_traffic_light_candidates"] = max(int(self.summary["max_traffic_light_candidates"]), int(state.get("traffic_light_candidates", 0) or 0))
+    self.summary["max_stop_sign_candidate_conf"] = max(float(self.summary["max_stop_sign_candidate_conf"]), float(state.get("stop_sign_max_conf", 0.0) or 0.0))
+    self.summary["max_traffic_light_candidate_conf"] = max(float(self.summary["max_traffic_light_candidate_conf"]), float(state.get("traffic_light_max_conf", 0.0) or 0.0))
+    self.params.put("KittTrafficDriveSummary", self.summary)
 
   def _frame_to_bgr(self, client, buf) -> np.ndarray:
     import cv2
@@ -284,7 +319,7 @@ class TrafficMonitor:
         try:
           state = self._detect(self._frame_to_bgr(client, buf))
           self.last_state = state
-          self.params.put("KittTrafficState", state)
+          self._publish_state(state)
         except Exception:
           cloudlog.exception("kitttrafficd detection failed")
 
