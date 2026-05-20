@@ -1,6 +1,8 @@
+from types import SimpleNamespace
+
 import numpy as np
 
-from openpilot.selfdrive.kitt.trafficd import Detection, classify_light_color, nms, traffic_candidate_stats
+from openpilot.selfdrive.kitt.trafficd import Detection, TrafficMonitor, classify_light_color, nms, traffic_candidate_stats
 
 
 def test_nms_keeps_highest_overlap():
@@ -50,3 +52,32 @@ def test_traffic_candidate_stats():
   assert stats["stop_sign_candidates"] == 1
   assert round(stats["traffic_light_max_conf"], 2) == 0.4
   assert round(stats["stop_sign_max_conf"], 2) == 0.3
+
+
+def test_detect_converts_bgr_to_rgb(monkeypatch):
+  captured = {}
+
+  def fake_parse(output, image_shape, scale, pad):
+    return []
+
+  def fake_stats(output):
+    return {}
+
+  class FakeSession:
+    def run(self, _, inputs):
+      blob = next(iter(inputs.values()))
+      captured["pixel"] = blob[0, :, 0, 0].tolist()
+      return [np.zeros((1, 84, 1), dtype=np.float32)]
+
+  monkeypatch.setattr("openpilot.selfdrive.kitt.trafficd.parse_yolov8", fake_parse)
+  monkeypatch.setattr("openpilot.selfdrive.kitt.trafficd.traffic_candidate_stats", fake_stats)
+
+  monitor = TrafficMonitor()
+  monitor.session = FakeSession()
+  monitor.input_name = "images"
+  frame_bgr = np.zeros((640, 640, 3), dtype=np.uint8)
+  frame_bgr[0, 0] = (10, 20, 30)
+
+  monitor._detect(frame_bgr)
+
+  np.testing.assert_allclose(captured["pixel"], [30 / 255.0, 20 / 255.0, 10 / 255.0])

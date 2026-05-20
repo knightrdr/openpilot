@@ -231,8 +231,11 @@ class TrafficMonitor:
     return cv2.cvtColor(yuv, cv2.COLOR_YUV2BGR_NV12)
 
   def _detect(self, frame_bgr: np.ndarray) -> dict[str, float | bool | str]:
+    import cv2
+
     assert self.session is not None
-    image, scale, pad = letterbox(frame_bgr)
+    frame_rgb = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2RGB)
+    image, scale, pad = letterbox(frame_rgb)
     blob = image.transpose(2, 0, 1)[np.newaxis].astype(np.float32) / 255.0
     output = self.session.run(None, {self.input_name: blob})[0]
     detections = parse_yolov8(output, frame_bgr.shape[:2], scale, pad)
