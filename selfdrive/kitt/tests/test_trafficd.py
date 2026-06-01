@@ -50,6 +50,10 @@ def test_traffic_candidate_stats():
 
   assert stats["traffic_light_candidates"] == 2
   assert stats["stop_sign_candidates"] == 1
+  assert stats["top_class"] == 9
+  assert round(stats["top_class_conf"], 2) == 0.4
+  assert stats["top_traffic_class"] == 9
+  assert round(stats["top_traffic_class_conf"], 2) == 0.4
   assert round(stats["traffic_light_max_conf"], 2) == 0.4
   assert round(stats["stop_sign_max_conf"], 2) == 0.3
 
@@ -106,6 +110,10 @@ def test_publish_state_updates_drive_summary(monkeypatch):
     "traffic_light_candidates": 1,
     "stop_sign_max_conf": 0.4,
     "traffic_light_max_conf": 0.2,
+    "top_class": 2,
+    "top_class_conf": 0.7,
+    "top_traffic_class": 11,
+    "top_traffic_class_conf": 0.4,
   }
 
   monitor._publish_state(state)
@@ -117,3 +125,7 @@ def test_publish_state_updates_drive_summary(monkeypatch):
   assert summary["stop_sign_seen"] is True
   assert summary["max_stop_sign_conf"] == 0.3
   assert summary["max_stop_sign_candidates"] == 2
+  assert summary["max_top_class"] == 2
+  assert summary["max_top_class_conf"] == 0.7
+  assert summary["max_top_traffic_class"] == 11
+  assert summary["max_top_traffic_class_conf"] == 0.4

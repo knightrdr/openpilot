@@ -135,7 +135,7 @@ class KittTrafficFusion:
       "possible_stop_control_count": 0,
       "confirmed_stop_control_count": 0,
       "max_object_conf": 0.0,
-      "min_desired_accel": 0.0,
+      "min_desired_accel": 99.0,
       "model_stop_seen": False,
       "lead_relevant_seen": False,
     }

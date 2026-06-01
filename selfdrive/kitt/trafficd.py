@@ -123,6 +123,10 @@ def traffic_candidate_stats(output: np.ndarray) -> dict[str, float | int]:
   pred = normalize_yolov8_prediction(output)
   if pred is None:
     return {
+      "top_class": -1,
+      "top_class_conf": 0.0,
+      "top_traffic_class": -1,
+      "top_traffic_class_conf": 0.0,
       "traffic_light_candidates": 0,
       "stop_sign_candidates": 0,
       "traffic_light_max_conf": 0.0,
@@ -132,19 +136,39 @@ def traffic_candidate_stats(output: np.ndarray) -> dict[str, float | int]:
   class_scores = pred[:, 4:]
   if class_scores.shape[1] <= max(TRAFFIC_LIGHT_CLASS, STOP_SIGN_CLASS):
     return {
+      "top_class": -1,
+      "top_class_conf": 0.0,
+      "top_traffic_class": -1,
+      "top_traffic_class_conf": 0.0,
       "traffic_light_candidates": 0,
       "stop_sign_candidates": 0,
       "traffic_light_max_conf": 0.0,
       "stop_sign_max_conf": 0.0,
     }
 
+  top_idx = int(np.argmax(class_scores))
+  _, top_class = divmod(top_idx, class_scores.shape[1])
+  top_class_conf = float(class_scores.reshape(-1)[top_idx])
   traffic_scores = class_scores[:, TRAFFIC_LIGHT_CLASS]
   stop_scores = class_scores[:, STOP_SIGN_CLASS]
+  traffic_light_max = float(np.max(traffic_scores)) if traffic_scores.size else 0.0
+  stop_sign_max = float(np.max(stop_scores)) if stop_scores.size else 0.0
+  if traffic_light_max >= stop_sign_max:
+    top_traffic_class = TRAFFIC_LIGHT_CLASS
+    top_traffic_class_conf = traffic_light_max
+  else:
+    top_traffic_class = STOP_SIGN_CLASS
+    top_traffic_class_conf = stop_sign_max
+
   return {
+    "top_class": int(top_class),
+    "top_class_conf": top_class_conf,
+    "top_traffic_class": top_traffic_class,
+    "top_traffic_class_conf": top_traffic_class_conf,
     "traffic_light_candidates": int(np.count_nonzero(traffic_scores >= DEBUG_CONF_THRESHOLD)),
     "stop_sign_candidates": int(np.count_nonzero(stop_scores >= DEBUG_CONF_THRESHOLD)),
-    "traffic_light_max_conf": float(np.max(traffic_scores)) if traffic_scores.size else 0.0,
-    "stop_sign_max_conf": float(np.max(stop_scores)) if stop_scores.size else 0.0,
+    "traffic_light_max_conf": traffic_light_max,
+    "stop_sign_max_conf": stop_sign_max,
   }
 
 
@@ -193,6 +217,10 @@ class TrafficMonitor:
       "max_red_light_conf": 0.0,
       "max_yellow_light_conf": 0.0,
       "max_green_light_conf": 0.0,
+      "max_top_class_conf": 0.0,
+      "max_top_class": -1,
+      "max_top_traffic_class_conf": 0.0,
+      "max_top_traffic_class": -1,
       "max_stop_sign_candidates": 0,
       "max_traffic_light_candidates": 0,
       "max_stop_sign_candidate_conf": 0.0,
@@ -252,6 +280,14 @@ class TrafficMonitor:
     for key in ("stop_sign", "red_light", "yellow_light", "green_light"):
       self.summary[f"{key}_seen"] = bool(self.summary.get(f"{key}_seen", False) or state.get(key, False))
       self.summary[f"max_{key}_conf"] = max(float(self.summary.get(f"max_{key}_conf", 0.0)), float(state.get(f"{key}_conf", 0.0) or 0.0))
+    top_conf = float(state.get("top_class_conf", 0.0) or 0.0)
+    if top_conf > float(self.summary["max_top_class_conf"]):
+      self.summary["max_top_class_conf"] = top_conf
+      self.summary["max_top_class"] = int(state.get("top_class", -1) or -1)
+    top_traffic_conf = float(state.get("top_traffic_class_conf", 0.0) or 0.0)
+    if top_traffic_conf > float(self.summary["max_top_traffic_class_conf"]):
+      self.summary["max_top_traffic_class_conf"] = top_traffic_conf
+      self.summary["max_top_traffic_class"] = int(state.get("top_traffic_class", -1) or -1)
     self.summary["max_stop_sign_candidates"] = max(int(self.summary["max_stop_sign_candidates"]), int(state.get("stop_sign_candidates", 0) or 0))
     self.summary["max_traffic_light_candidates"] = max(int(self.summary["max_traffic_light_candidates"]), int(state.get("traffic_light_candidates", 0) or 0))
     self.summary["max_stop_sign_candidate_conf"] = max(float(self.summary["max_stop_sign_candidate_conf"]), float(state.get("stop_sign_max_conf", 0.0) or 0.0))
