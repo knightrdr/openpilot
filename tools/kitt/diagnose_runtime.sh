@@ -23,6 +23,8 @@ for key in [
   "KittTrafficMonitor",
   "KittVoiceLastResult",
   "KittVoiceLastCommand",
+  "KittTrafficDebugCapture",
+  "KittTrafficDebugCaptureLast",
   "KittTrafficState",
   "KittTrafficLastState",
   "KittTrafficDriveSummary",
@@ -38,6 +40,14 @@ for key in [
   except Exception as e:
     print(f"{key}: ERROR {e}")
 PY
+
+echo
+echo "== KITT debug captures =="
+if [ -d /data/openpilot/kitt/debug_captures ]; then
+  find /data/openpilot/kitt/debug_captures -maxdepth 1 -type f | sort | tail -20
+else
+  echo "No debug capture directory"
+fi
 
 echo
 echo "== processes =="
