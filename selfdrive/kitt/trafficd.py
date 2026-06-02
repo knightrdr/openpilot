@@ -1,13 +1,10 @@
 #!/usr/bin/env python3
 import os
-import json
 import time
 from dataclasses import dataclass
-from pathlib import Path
 
 import numpy as np
 
-from cereal import messaging
 from openpilot.common.params import Params
 from openpilot.common.realtime import Ratekeeper
 from openpilot.common.swaglog import cloudlog
@@ -26,10 +23,6 @@ DEBUG_CONF_THRESHOLD = 0.05
 IOU_THRESHOLD = 0.45
 TRAFFIC_LIGHT_CLASS = 9
 STOP_SIGN_CLASS = 11
-MODEL_DECEL_CAPTURE_THRESHOLD = -0.5
-DEBUG_CAPTURE_DIR = Path("/data/openpilot/kitt/debug_captures")
-DEBUG_CAPTURE_PERIOD = 8.0
-DEBUG_CAPTURE_LIMIT = 30
 
 
 @dataclass(frozen=True)
@@ -208,10 +201,8 @@ def classify_light_color(frame_bgr: np.ndarray, box: tuple[int, int, int, int]) 
 class TrafficMonitor:
   def __init__(self):
     self.params = Params()
-    self.sm = messaging.SubMaster(["modelV2", "carState", "radarState"])
     self.rk = Ratekeeper(20)
     self.last_detection_t = 0.0
-    self.last_capture_t = 0.0
     self.last_state: dict[str, float | bool | str] = {}
     self.summary: dict[str, float | int | bool | str] = {
       "status": "ready",
@@ -237,17 +228,6 @@ class TrafficMonitor:
     }
     self.session = None
     self.input_name = ""
-
-  def _prune_captures(self) -> None:
-    captures = sorted(DEBUG_CAPTURE_DIR.glob("kitt_capture_*.jpg"))
-    for path in captures[:-DEBUG_CAPTURE_LIMIT]:
-      try:
-        path.unlink()
-        meta_path = path.with_suffix(".json")
-        if meta_path.exists():
-          meta_path.unlink()
-      except OSError:
-        pass
 
   def _set_status(self, status: str) -> None:
     state = {"status": status, "ts": time.monotonic()}
@@ -291,52 +271,6 @@ class TrafficMonitor:
     self.params.put("KittTrafficLastCamera", str(stream))
     cloudlog.info(f"kitttrafficd connected camera {stream=} {client.width}x{client.height}")
     return client
-
-  def _maybe_capture_debug_frame(self, frame_bgr: np.ndarray, state: dict[str, float | bool | str]) -> None:
-    if not self.params.get_bool("KittTrafficDebugCapture"):
-      return
-    if not self.sm.updated["modelV2"]:
-      return
-
-    model_action = self.sm["modelV2"].action
-    desired_accel = float(model_action.desiredAcceleration)
-    should_stop = bool(model_action.shouldStop)
-    if not should_stop and desired_accel > MODEL_DECEL_CAPTURE_THRESHOLD:
-      return
-
-    now = time.monotonic()
-    if now - self.last_capture_t < DEBUG_CAPTURE_PERIOD:
-      return
-    self.last_capture_t = now
-
-    try:
-      import cv2
-
-      DEBUG_CAPTURE_DIR.mkdir(parents=True, exist_ok=True)
-      capture_id = int(time.time() * 1000)
-      image_path = DEBUG_CAPTURE_DIR / f"kitt_capture_{capture_id}.jpg"
-      meta_path = image_path.with_suffix(".json")
-      cv2.imwrite(str(image_path), frame_bgr)
-
-      lead = self.sm["radarState"].leadOne
-      metadata = {
-        "ts": now,
-        "wall_time_ms": capture_id,
-        "image_path": str(image_path),
-        "desired_accel": desired_accel,
-        "should_stop": should_stop,
-        "v_ego": float(self.sm["carState"].vEgo),
-        "lead_present": bool(lead.status),
-        "lead_distance": float(lead.dRel) if lead.status else 0.0,
-        "lead_v_rel": float(lead.vRel) if lead.status else 0.0,
-        "lead_radar": bool(lead.radar) if lead.status else False,
-        "traffic_state": state,
-      }
-      meta_path.write_text(json.dumps(metadata, sort_keys=True), encoding="utf-8")
-      self.params.put("KittTrafficDebugCaptureLast", metadata)
-      self._prune_captures()
-    except Exception:
-      cloudlog.exception("kitttrafficd failed to save debug capture")
 
   def _publish_state(self, state: dict[str, float | bool | str]) -> None:
     self.params.put("KittTrafficState", state)
@@ -411,7 +345,6 @@ class TrafficMonitor:
 
     client = self._connect_camera()
     while True:
-      self.sm.update(0)
       buf = client.recv()
       if buf is None:
         continue
@@ -420,11 +353,9 @@ class TrafficMonitor:
       if now - self.last_detection_t >= DETECTION_PERIOD:
         self.last_detection_t = now
         try:
-          frame_bgr = self._frame_to_bgr(client, buf)
-          state = self._detect(frame_bgr)
+          state = self._detect(self._frame_to_bgr(client, buf))
           self.last_state = state
           self._publish_state(state)
-          self._maybe_capture_debug_frame(frame_bgr, state)
         except Exception:
           cloudlog.exception("kitttrafficd detection failed")
 
